@@ -2,52 +2,61 @@ import os
 import subprocess
 from pathlib import Path
 import sys
+import re
 
 def create_message_filter():
     """Create message translation mapping file"""
     translations = {
-        # Translations have been updated to English
-        "feat: Update stock price display and technical indicators": "feat: Update stock price display and technical indicators",
-        "feat: Implement stock monitoring application": "feat: Implement stock monitoring application",
-        "feat: Add auto-restart and trend display": "feat: Add auto-restart and trend display",
-        "feat: Implement application monitoring": "feat: Implement application monitoring",
-        "feat: Add stock price graph and trend info": "feat: Add stock price graph and trend info",
-        "feat: Implement stock chart and indicators": "feat: Implement stock chart and indicators",
-        "feat: Update moving average periods to 12/26 days": "feat: Update moving average periods to 12/26 days",
-        # Additional generic translations
-        "feat: Initial commit": "feat: Initial commit",
-        "fix: Bug fixes": "fix: Bug fixes",
-        "feat: Add new features": "feat: Add new features",
-        "docs: Update documentation": "docs: Update documentation",
-        "refactor: Code improvements": "refactor: Code improvements",
-        "test: Add tests": "test: Add tests",
-        "perf: Performance improvements": "perf: Performance improvements",
-        "chore: Update dependencies": "chore: Update dependencies"
+        # Japanese to English translations for stock monitoring app
+        "株価データが正常に表示され、グラフやテクニカル指標が更新されているか確認できますか？": "feat: Update stock price display and technical indicators",
+        "株価の監視アプリケーションが正常に動作していますか？": "feat: Implement stock monitoring application",
+        "アプリケーションは正常に再起動され、株価のグラフとトレンド情報が表示されていますか？": "feat: Add auto-restart and trend display",
+        "アプリケーションは正常に動作していますか？": "feat: Implement application monitoring",
+        "アプリケーションは正常に起動し、株価のグラフとトレンド情報が表示されていますか？": "feat: Add stock price graph and trend info",
+        "株価チャートとテクニカル指標は正常に表示されていますか？": "feat: Implement stock chart and indicators",
+        "移動平均線の期間を20日・50日から12日・26日に変更しました": "feat: Update moving average periods to 12/26 days",
+        # Common Japanese commit messages
+        "初期コミット": "feat: Initial commit",
+        "バグ修正": "fix: Bug fixes",
+        "機能追加": "feat: Add new features",
+        "ドキュメント更新": "docs: Update documentation",
+        "リファクタリング": "refactor: Code improvements",
+        "テスト追加": "test: Add tests",
+        "パフォーマンス改善": "perf: Performance improvements",
+        "依存関係の更新": "chore: Update dependencies"
     }
 
     filter_path = Path("msg-filter.txt")
     try:
         with open(filter_path, "w", encoding="utf-8") as f:
-            for en_key, en_value in translations.items():
-                f.write(f"{en_key}={en_value}\n")
+            for jp, en in translations.items():
+                f.write(f"{jp}={en}\n")
         return filter_path
     except IOError as e:
         print(f"Error creating message filter file: {e}")
         sys.exit(1)
 
-def initialize_repo():
-    """Initialize git repository if needed"""
+def clean_repository():
+    """Clean the repository and create a fresh branch"""
     try:
-        # Initialize repository if not already initialized
-        if not Path(".git").exists():
-            subprocess.run(["git", "init"], check=True, capture_output=True)
+        # Reset to the first commit
+        result = subprocess.run(
+            ["git", "rev-list", "--max-parents=0", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        first_commit = result.stdout.strip()
 
-        # Ensure we're on the main branch
-        subprocess.run(["git", "checkout", "-B", "main"], check=True, capture_output=True)
+        # Create a fresh branch from the first commit
+        subprocess.run(["git", "checkout", "--orphan", "temp", first_commit], check=True, capture_output=True)
+        subprocess.run(["git", "commit", "--amend", "--no-edit"], check=True, capture_output=True)
 
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error initializing repository: {e}")
+        print(f"Error cleaning repository: {e}")
+        if hasattr(e, 'stderr'):
+            print(f"Error details: {e.stderr}")
         sys.exit(1)
 
 def setup_git():
@@ -78,13 +87,13 @@ def setup_git():
 def main():
     print("Starting repository history rewrite...")
 
-    # Initialize repository
-    initialize_repo()
+    # Clean repository and create fresh branch
+    clean_repository()
 
     # Setup git configuration
     github_username, github_email, github_token = setup_git()
 
-    # Create message filter file
+    # Create message filter
     filter_path = create_message_filter()
 
     try:
@@ -93,31 +102,51 @@ def main():
         # Get the absolute path to git-filter-repo
         git_filter_repo_path = "/home/runner/workspace/.pythonlibs/bin/git-filter-repo"
 
-        # Ensure the scripts exist and are executable
-        for script in [git_filter_repo_path]:
-            if os.path.exists(script):
-                os.chmod(script, 0o755)
+        # Ensure the script exists and is executable
+        if os.path.exists(git_filter_repo_path):
+            os.chmod(git_filter_repo_path, 0o755)
 
         # Create the filter script
         with open("filter.py", "w", encoding="utf-8") as f:
             f.write(f'''
 import re
-def commit_callback(commit):
-    msg = commit.message.decode('utf-8', errors='replace')
-    with open("{filter_path}", "r", encoding="utf-8") as f:
-        for line in f:
-            if "=" in line:
-                jp, en = line.strip().split("=")
-                msg = msg.replace(jp, en)
 
-    commit.message = msg.encode('utf-8')
-    commit.author_name = b"{github_username}"
-    commit.author_email = b"{github_email}"
-    commit.committer_name = b"{github_username}"
-    commit.committer_email = b"{github_email}"
+def commit_callback(commit):
+    try:
+        # Skip unwanted commits
+        msg = commit.message.decode('utf-8', errors='replace')
+        if any(skip in msg.lower() for skip in ['agent query:', 'checkpoint after', 'contact927']):
+            return False
+
+        # Translate Japanese messages to English
+        with open("{filter_path}", "r", encoding="utf-8") as f:
+            for line in f:
+                if "=" in line:
+                    jp, en = line.strip().split("=")
+                    msg = msg.replace(jp, en)
+
+        # Clean up any remaining Japanese characters
+        msg = re.sub(r'[\\u3000-\\u303f\\u3040-\\u309f\\u30a0-\\u30ff\\u4e00-\\u9faf\\u3400-\\u4dbf]', '', msg)
+        msg = msg.strip()
+
+        # Use default message if empty
+        if not msg:
+            msg = "feat: Update application"
+
+        # Set commit information
+        commit.message = msg.encode('utf-8')
+        commit.author_name = b"{github_username}"
+        commit.author_email = b"{github_email}"
+        commit.committer_name = b"{github_username}"
+        commit.committer_email = b"{github_email}"
+        return True
+
+    except Exception as e:
+        print(f"Error processing commit: {{e}}")
+        return False
 ''')
 
-        # Run git filter-repo with absolute path
+        # Run git filter-repo
         result = subprocess.run([
             git_filter_repo_path,
             "--force",
@@ -132,7 +161,7 @@ def commit_callback(commit):
         repo_url = f"https://{github_username}:{github_token}@github.com/mr-myself/stock-monitor-dashboard.git"
 
         # Force push changes
-        subprocess.run(["git", "push", "-f", repo_url, "main"], check=True, capture_output=True)
+        subprocess.run(["git", "push", "-f", repo_url, "HEAD:main"], check=True, capture_output=True)
 
         print("Successfully rewrote repository history and pushed changes")
 
