@@ -44,20 +44,20 @@ def create_price_chart(data):
     ))
 
     # Add moving averages if they exist
-    if 'SMA20' in data.columns:
+    if 'SMA12' in data.columns:  # Changed from SMA20
         fig.add_trace(go.Scatter(
             x=data.index,
-            y=data['SMA20'],
+            y=data['SMA12'],
             line=dict(color='yellow', width=1),
-            name='SMA20'
+            name='SMA12'  # Changed from SMA20
         ))
 
-    if 'SMA50' in data.columns:
+    if 'SMA26' in data.columns:  # Changed from SMA50
         fig.add_trace(go.Scatter(
             x=data.index,
-            y=data['SMA50'],
+            y=data['SMA26'],
             line=dict(color='blue', width=1),
-            name='SMA50'
+            name='SMA26'  # Changed from SMA50
         ))
 
     # Update layout
@@ -118,8 +118,8 @@ def main():
 
                 with col4:
                     st.markdown("### Technical Indicators")
-                    st.markdown(f"**SMA20:** ${trend_data['sma20']:.2f}")
-                    st.markdown(f"**SMA50:** ${trend_data['sma50']:.2f}")
+                    st.markdown(f"**SMA12:** ${trend_data['sma12']:.2f}")  # Changed from SMA20
+                    st.markdown(f"**SMA26:** ${trend_data['sma26']:.2f}")  # Changed from SMA50
 
                 with col5:
                     st.markdown("### Volume Analysis")
