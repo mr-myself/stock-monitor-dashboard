@@ -35,8 +35,8 @@ def create_message_filter():
         print(f"Error creating message filter file: {e}")
         sys.exit(1)
 
-def setup_git_config():
-    """Configure git with provided credentials without prompting"""
+def setup_git():
+    """Setup git configuration"""
     github_username = os.environ.get("GITHUB_USERNAME")
     github_email = os.environ.get("GITHUB_EMAIL")
     github_token = os.environ.get("GITHUB_TOKEN")
@@ -45,81 +45,65 @@ def setup_git_config():
         print("Error: GitHub credentials not found in environment")
         sys.exit(1)
 
-    try:
-        # Set git configuration without prompting
-        subprocess.run(["git", "config", "user.name", github_username], check=True, capture_output=True)
-        subprocess.run(["git", "config", "user.email", github_email], check=True, capture_output=True)
+    commands = [
+        ["git", "config", "--global", "user.name", github_username],
+        ["git", "config", "--global", "user.email", github_email],
+        ["git", "config", "--global", "--add", "safe.directory", "/home/runner/workspace"],
+    ]
 
-        # Configure credential helper to avoid prompts
-        subprocess.run(["git", "config", "credential.helper", "store"], check=True, capture_output=True)
+    for cmd in commands:
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error executing command {' '.join(cmd)}: {e}")
+            sys.exit(1)
 
-        return github_username, github_email, github_token
-    except subprocess.CalledProcessError as e:
-        print(f"Error configuring git: {e}")
-        sys.exit(1)
-
-def backup_repository():
-    """Create a backup of the repository"""
-    try:
-        backup_path = Path("backup_repo")
-        if backup_path.exists():
-            subprocess.run(["rm", "-rf", str(backup_path)], check=True)
-        subprocess.run(["cp", "-r", ".", str(backup_path)], check=True)
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error creating backup: {e}")
-        sys.exit(1)
+    return github_username, github_email, github_token
 
 def main():
     print("Starting repository history rewrite...")
 
     # Setup git configuration
-    github_username, github_email, github_token = setup_git_config()
+    github_username, github_email, github_token = setup_git()
 
     # Create message filter file
     filter_path = create_message_filter()
 
-    # Create the filter script
-    filter_script = f"""
-import os
-def callback(commit):
     try:
-        # Translate commit message
-        msg = commit.message.decode('utf-8', errors='replace')
-        with open("{filter_path}", "r", encoding="utf-8") as f:
-            for line in f:
-                if "=" in line:
-                    jp, en = line.strip().split("=")
-                    msg = msg.replace(jp, en)
-
-        # Update commit information
-        commit.message = msg.encode('utf-8')
-        commit.author_name = b"{github_username}"
-        commit.author_email = b"{github_email}"
-        commit.committer_name = b"{github_username}"
-        commit.committer_email = b"{github_email}"
-    except Exception as e:
-        print(f"Error processing commit: {{e}}")
-        raise
-    """
-
-    try:
-        with open("filter.py", "w", encoding="utf-8") as f:
-            f.write(filter_script)
-
         print("Running git filter-repo...")
-        # Run git filter-repo without prompting
+
+        # Create the filter script
+        with open("filter.py", "w", encoding="utf-8") as f:
+            f.write(f'''
+import re
+def commit_callback(commit):
+    msg = commit.message.decode('utf-8', errors='replace')
+    with open("{filter_path}", "r", encoding="utf-8") as f:
+        for line in f:
+            if "=" in line:
+                jp, en = line.strip().split("=")
+                msg = msg.replace(jp, en)
+
+    commit.message = msg.encode('utf-8')
+    commit.author_name = b"{github_username}"
+    commit.author_email = b"{github_email}"
+    commit.committer_name = b"{github_username}"
+    commit.committer_email = b"{github_email}"
+''')
+
+        # Run git filter-repo
         subprocess.run([
-            "git", "filter-repo",
+            "git-filter-repo",
             "--force",
-            "--commit-callback-script", "filter.py"
+            "--source", ".",
+            "--use-backup",
+            "--python", "filter.py",
         ], check=True, capture_output=True)
 
-        print("Updating remote...")
-        # Setup remote with token authentication
+        print("Setting up remote with token...")
         repo_url = f"https://{github_username}:{github_token}@github.com/mr-myself/stock-monitor-dashboard.git"
 
-        # Force push changes without prompting
+        # Force push changes
         subprocess.run(["git", "push", "-f", repo_url, "main"], check=True, capture_output=True)
 
         print("Successfully rewrote repository history and pushed changes")
