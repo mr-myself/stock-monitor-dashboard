@@ -4,7 +4,6 @@ from datetime import datetime
 import pandas as pd
 from utils.stock_analyzer import StockAnalyzer
 from utils.slack_notifier import SlackNotifier
-import time
 
 # Page configuration
 st.set_page_config(
@@ -33,7 +32,7 @@ col1, col2, col3 = st.columns(3)
 def create_price_chart(data):
     """Create an interactive price chart with Plotly"""
     fig = go.Figure()
-    
+
     # Candlestick chart
     fig.add_trace(go.Candlestick(
         x=data.index,
@@ -43,7 +42,7 @@ def create_price_chart(data):
         close=data['Close'],
         name='OHLC'
     ))
-    
+
     # Add moving averages
     fig.add_trace(go.Scatter(
         x=data.index,
@@ -51,14 +50,14 @@ def create_price_chart(data):
         line=dict(color='yellow', width=1),
         name='SMA20'
     ))
-    
+
     fig.add_trace(go.Scatter(
         x=data.index,
         y=data['SMA50'],
         line=dict(color='blue', width=1),
         name='SMA50'
     ))
-    
+
     # Update layout
     fig.update_layout(
         template='plotly_dark',
@@ -66,7 +65,7 @@ def create_price_chart(data):
         height=600,
         margin=dict(l=0, r=0, t=30, b=0)
     )
-    
+
     return fig
 
 def main():
@@ -74,7 +73,7 @@ def main():
     data = st.session_state.analyzer.get_real_time_data()
     data = st.session_state.analyzer.calculate_technical_indicators(data)
     trend_data = st.session_state.analyzer.detect_trend(data)
-    
+
     if trend_data:
         # Display metrics
         with col1:
@@ -111,7 +110,7 @@ def main():
 
         # Additional metrics
         col4, col5 = st.columns(2)
-        
+
         with col4:
             st.markdown("### Technical Indicators")
             st.markdown(f"**SMA20:** ${trend_data['sma20']:.2f}")
@@ -123,7 +122,9 @@ def main():
             st.markdown(f"**Avg Volume:** {data['Volume'].rolling(20).mean().iloc[-1]:,.0f}")
 
 if __name__ == "__main__":
+    # Add auto-refresh using Streamlit's native functionality
+    st.empty()  # placeholder to trigger rerun
     main()
-    # Auto-refresh every minute
-    time.sleep(60)
-    st.experimental_rerun()
+    # Set automatic refresh interval to 60 seconds
+    st.cache_data.clear()
+    st.experimental_set_query_params()
