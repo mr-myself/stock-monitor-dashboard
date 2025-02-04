@@ -1,0 +1,15 @@
+株価データが正常に表示され、グラフやテクニカル指標が更新されているか確認できますか？=feat: Update stock price display and technical indicators
+株価の監視アプリケーションが正常に動作していますか？=feat: Implement stock monitoring application
+アプリケーションは正常に再起動され、株価のグラフとトレンド情報が表示されていますか？=feat: Add auto-restart and trend display
+アプリケーションは正常に動作していますか？=feat: Implement application monitoring
+アプリケーションは正常に起動し、株価のグラフとトレンド情報が表示されていますか？=feat: Add stock price graph and trend info
+株価チャートとテクニカル指標は正常に表示されていますか？=feat: Implement stock chart and indicators
+移動平均線の期間を20日・50日から12日・26日に変更しました=feat: Update moving average periods to 12/26 days
+初期コミット=feat: Initial commit
+バグ修正=fix: Bug fixes
+機能追加=feat: Add new features
+ドキュメント更新=docs: Update documentation
+リファクタリング=refactor: Code improvements
+テスト追加=test: Add tests
+パフォーマンス改善=perf: Performance improvements
+依存関係の更新=chore: Update dependencies
