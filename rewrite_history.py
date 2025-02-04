@@ -6,33 +6,48 @@ import sys
 def create_message_filter():
     """Create message translation mapping file"""
     translations = {
-        # Original translations
-        "株価データが正常に表示され、グラフやテクニカル指標が更新されているか確認できますか？": "feat: Update stock price display and technical indicators",
-        "株価の監視アプリケーションが正常に動作していますか？": "feat: Implement stock monitoring application",
-        "アプリケーションは正常に再起動され、株価のグラフとトレンド情報が表示されていますか？": "feat: Add auto-restart and trend display",
-        "アプリケーションは正常に動作していますか？": "feat: Implement application monitoring",
-        "アプリケーションは正常に起動し、株価のグラフとトレンド情報が表示されていますか？": "feat: Add stock price graph and trend info",
-        "株価チャートとテクニカル指標は正常に表示されていますか？": "feat: Implement stock chart and indicators",
-        "移動平均線の期間を20日・50日から12日・26日に変更しました": "feat: Update moving average periods to 12/26 days",
+        # Translations have been updated to English
+        "feat: Update stock price display and technical indicators": "feat: Update stock price display and technical indicators",
+        "feat: Implement stock monitoring application": "feat: Implement stock monitoring application",
+        "feat: Add auto-restart and trend display": "feat: Add auto-restart and trend display",
+        "feat: Implement application monitoring": "feat: Implement application monitoring",
+        "feat: Add stock price graph and trend info": "feat: Add stock price graph and trend info",
+        "feat: Implement stock chart and indicators": "feat: Implement stock chart and indicators",
+        "feat: Update moving average periods to 12/26 days": "feat: Update moving average periods to 12/26 days",
         # Additional generic translations
-        "初期コミット": "feat: Initial commit",
-        "バグ修正": "fix: Bug fixes",
-        "機能追加": "feat: Add new features",
-        "ドキュメント更新": "docs: Update documentation",
-        "リファクタリング": "refactor: Code improvements",
-        "テスト追加": "test: Add tests",
-        "パフォーマンス改善": "perf: Performance improvements",
-        "依存関係の更新": "chore: Update dependencies"
+        "feat: Initial commit": "feat: Initial commit",
+        "fix: Bug fixes": "fix: Bug fixes",
+        "feat: Add new features": "feat: Add new features",
+        "docs: Update documentation": "docs: Update documentation",
+        "refactor: Code improvements": "refactor: Code improvements",
+        "test: Add tests": "test: Add tests",
+        "perf: Performance improvements": "perf: Performance improvements",
+        "chore: Update dependencies": "chore: Update dependencies"
     }
 
     filter_path = Path("msg-filter.txt")
     try:
         with open(filter_path, "w", encoding="utf-8") as f:
-            for jp, en in translations.items():
-                f.write(f"{jp}={en}\n")
+            for en_key, en_value in translations.items():
+                f.write(f"{en_key}={en_value}\n")
         return filter_path
     except IOError as e:
         print(f"Error creating message filter file: {e}")
+        sys.exit(1)
+
+def initialize_repo():
+    """Initialize git repository if needed"""
+    try:
+        # Initialize repository if not already initialized
+        if not Path(".git").exists():
+            subprocess.run(["git", "init"], check=True, capture_output=True)
+
+        # Ensure we're on the main branch
+        subprocess.run(["git", "checkout", "-B", "main"], check=True, capture_output=True)
+
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error initializing repository: {e}")
         sys.exit(1)
 
 def setup_git():
@@ -63,6 +78,9 @@ def setup_git():
 def main():
     print("Starting repository history rewrite...")
 
+    # Initialize repository
+    initialize_repo()
+
     # Setup git configuration
     github_username, github_email, github_token = setup_git()
 
@@ -71,6 +89,14 @@ def main():
 
     try:
         print("Running git filter-repo...")
+
+        # Get the absolute path to git-filter-repo
+        git_filter_repo_path = "/home/runner/workspace/.pythonlibs/bin/git-filter-repo"
+
+        # Ensure the scripts exist and are executable
+        for script in [git_filter_repo_path]:
+            if os.path.exists(script):
+                os.chmod(script, 0o755)
 
         # Create the filter script
         with open("filter.py", "w", encoding="utf-8") as f:
@@ -91,14 +117,16 @@ def commit_callback(commit):
     commit.committer_email = b"{github_email}"
 ''')
 
-        # Run git filter-repo
-        subprocess.run([
-            "git-filter-repo",
+        # Run git filter-repo with absolute path
+        result = subprocess.run([
+            git_filter_repo_path,
             "--force",
-            "--source", ".",
-            "--use-backup",
-            "--python", "filter.py",
-        ], check=True, capture_output=True)
+            "--commit-callback", "filter.py",
+        ], capture_output=True, text=True)
+
+        if result.returncode != 0:
+            print(f"Error running git-filter-repo:\n{result.stderr}")
+            sys.exit(1)
 
         print("Setting up remote with token...")
         repo_url = f"https://{github_username}:{github_token}@github.com/mr-myself/stock-monitor-dashboard.git"
@@ -110,6 +138,11 @@ def commit_callback(commit):
 
     except subprocess.CalledProcessError as e:
         print(f"Error executing git commands: {e}")
+        if hasattr(e, 'stderr'):
+            print(f"Error details: {e.stderr}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
