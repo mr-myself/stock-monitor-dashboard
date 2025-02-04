@@ -43,20 +43,22 @@ def create_price_chart(data):
         name='OHLC'
     ))
 
-    # Add moving averages
-    fig.add_trace(go.Scatter(
-        x=data.index,
-        y=data['SMA20'],
-        line=dict(color='yellow', width=1),
-        name='SMA20'
-    ))
+    # Add moving averages if they exist
+    if 'SMA20' in data.columns:
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['SMA20'],
+            line=dict(color='yellow', width=1),
+            name='SMA20'
+        ))
 
-    fig.add_trace(go.Scatter(
-        x=data.index,
-        y=data['SMA50'],
-        line=dict(color='blue', width=1),
-        name='SMA50'
-    ))
+    if 'SMA50' in data.columns:
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['SMA50'],
+            line=dict(color='blue', width=1),
+            name='SMA50'
+        ))
 
     # Update layout
     fig.update_layout(
@@ -69,62 +71,65 @@ def create_price_chart(data):
     return fig
 
 def main():
-    # Fetch and analyze real-time data
-    data = st.session_state.analyzer.get_real_time_data()
-    data = st.session_state.analyzer.calculate_technical_indicators(data)
-    trend_data = st.session_state.analyzer.detect_trend(data)
+    try:
+        # Fetch and analyze real-time data
+        data = st.session_state.analyzer.get_real_time_data()
+        if not data.empty:
+            data = st.session_state.analyzer.calculate_technical_indicators(data)
+            trend_data = st.session_state.analyzer.detect_trend(data)
 
-    if trend_data:
-        # Display metrics
-        with col1:
-            current_price = trend_data['current_price']
-            st.metric(
-                "Current Price",
-                f"${current_price:.2f}",
-                delta=f"{(current_price - data['Close'].iloc[-2]):.2f}"
-            )
+            if trend_data:
+                # Display metrics
+                with col1:
+                    current_price = trend_data['current_price']
+                    prev_close = data['Close'].iloc[-2] if len(data) > 1 else current_price
+                    st.metric(
+                        "Current Price",
+                        f"${current_price:.2f}",
+                        delta=f"{(current_price - prev_close):.2f}"
+                    )
 
-        with col2:
-            st.metric(
-                "Trend",
-                trend_data['trend'].upper(),
-                delta_color="normal"
-            )
+                with col2:
+                    st.metric(
+                        "Trend",
+                        trend_data['trend'].upper(),
+                        delta_color="normal"
+                    )
 
-        with col3:
-            st.metric(
-                "RSI",
-                f"{trend_data['rsi']:.2f}",
-                delta=None
-            )
+                with col3:
+                    st.metric(
+                        "RSI",
+                        f"{trend_data['rsi']:.2f}",
+                        delta=None
+                    )
 
-        # Main chart
-        st.plotly_chart(create_price_chart(data), use_container_width=True)
+                # Main chart
+                st.plotly_chart(create_price_chart(data), use_container_width=True)
 
-        # Send notification if needed
-        if (trend_data['trend_changed'] and 
-            trend_data['trend'] == 'uptrend' and 
-            st.session_state.analyzer.should_notify()):
-            st.session_state.slack_notifier.send_notification(trend_data)
-            st.session_state.analyzer.last_notification_time = datetime.now()
+                # Send notification if needed
+                if (trend_data['trend_changed'] and 
+                    trend_data['trend'] == 'uptrend' and 
+                    st.session_state.analyzer.should_notify()):
+                    st.session_state.slack_notifier.send_notification(trend_data)
+                    st.session_state.analyzer.last_notification_time = datetime.now()
 
-        # Additional metrics
-        col4, col5 = st.columns(2)
+                # Additional metrics
+                col4, col5 = st.columns(2)
 
-        with col4:
-            st.markdown("### Technical Indicators")
-            st.markdown(f"**SMA20:** ${trend_data['sma20']:.2f}")
-            st.markdown(f"**SMA50:** ${trend_data['sma50']:.2f}")
+                with col4:
+                    st.markdown("### Technical Indicators")
+                    st.markdown(f"**SMA20:** ${trend_data['sma20']:.2f}")
+                    st.markdown(f"**SMA50:** ${trend_data['sma50']:.2f}")
 
-        with col5:
-            st.markdown("### Volume Analysis")
-            st.markdown(f"**Daily Volume:** {data['Volume'].iloc[-1]:,.0f}")
-            st.markdown(f"**Avg Volume:** {data['Volume'].rolling(20).mean().iloc[-1]:,.0f}")
+                with col5:
+                    st.markdown("### Volume Analysis")
+                    st.markdown(f"**Daily Volume:** {data['Volume'].iloc[-1]:,.0f}")
+                    st.markdown(f"**Avg Volume:** {data['Volume'].rolling(20).mean().iloc[-1]:,.0f}")
+        else:
+            st.error("Unable to fetch stock data. Please check your connection.")
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    # Add auto-refresh using Streamlit's native functionality
-    st.empty()  # placeholder to trigger rerun
     main()
-    # Set automatic refresh interval to 60 seconds
-    st.cache_data.clear()
-    st.query_params.set()  # Using the new stable API instead of experimental
+    st.empty()  # This will trigger a rerun every few seconds
