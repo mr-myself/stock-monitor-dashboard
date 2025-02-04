@@ -127,4 +127,4 @@ if __name__ == "__main__":
     main()
     # Set automatic refresh interval to 60 seconds
     st.cache_data.clear()
-    st.experimental_set_query_params()
+    st.query_params.set()  # Using the new stable API instead of experimental
