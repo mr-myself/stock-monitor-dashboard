@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from datetime import datetime
 import pandas as pd
+import os
 from utils.stock_analyzer import StockAnalyzer
 from utils.slack_notifier import SlackNotifier
 
@@ -21,7 +22,8 @@ with open('assets/style.css') as f:
 if 'analyzer' not in st.session_state:
     st.session_state.analyzer = StockAnalyzer()
 if 'slack_notifier' not in st.session_state:
-    st.session_state.slack_notifier = SlackNotifier("YOUR_SLACK_WEBHOOK_URL")
+    webhook_url = os.environ.get('SLACK_WEBHOOK_URL')
+    st.session_state.slack_notifier = SlackNotifier(webhook_url) if webhook_url else None
 
 # App title
 st.markdown('<h1 class="stock-title">NVIDIA Stock Monitor</h1>', unsafe_allow_html=True)
@@ -106,8 +108,9 @@ def main():
                 # Main chart
                 st.plotly_chart(create_price_chart(data), use_container_width=True)
 
-                # Send notification if needed
-                if (trend_data['trend_changed'] and 
+                # Send notification if needed (only if Slack is configured)
+                if (st.session_state.slack_notifier and
+                    trend_data['trend_changed'] and 
                     trend_data['trend'] == 'uptrend' and 
                     st.session_state.analyzer.should_notify()):
                     st.session_state.slack_notifier.send_notification(trend_data)
